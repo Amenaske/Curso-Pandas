@@ -198,6 +198,7 @@ for k in range(n_iteration):
     ## --- Testing ---
     print(f'Testing iteration {k}...')
     for i, snr in enumerate(SNR_db):
+        current_snr_db = SNR_db[i]
         SPC_t, label1_t, label2_t = generate(M, N, batch_size * test_size)
         sig_pwr = np.mean(SPC_t ** 2)
         sigma = math.sqrt(sig_pwr / (math.sqrt(N) * 10 ** (snr / 10.0)))
@@ -212,6 +213,8 @@ for k in range(n_iteration):
         out2_t = model2(in2_t, training=False).numpy()
         ERROR_user2[i, k] = 1 - calculate_manual_accuracy(label2_t, out2_t, M)
 
+        print(f"SNR {current_snr_db} dB: SER1 = {ERROR_user1[i, k]:.6f}, SER2 = {ERROR_user2[i, k]:.6f}")
+
 ## --- Plotting ---
 error1 = np.mean(ERROR_user1, axis=1)
 error2 = np.mean(ERROR_user2, axis=1)
@@ -219,9 +222,9 @@ error2 = np.mean(ERROR_user2, axis=1)
 plt.figure()
 plt.semilogy(SNR_db, error1, ls='--', marker='o', label='User 1')
 plt.semilogy(SNR_db, error2, ls='--', marker='+', label='User 2')
-plt.grid(True, which='both')
+plt.grid(True)
 plt.legend()
-plt.ylim(1e-6, 1.0)
+plt.ylim(pow(10, -6), pow(10, 0))
 plt.xlabel('SNR (dB)')
 plt.ylabel('SER')
 plt.title('SER of NOMA Users via DNN (TF2)')
