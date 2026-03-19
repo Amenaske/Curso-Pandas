@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 import math
 import matplotlib.pyplot as plt
+import hls4ml
 
 # Set seeds for reproducibility
 np.random.seed(5)
@@ -104,38 +105,41 @@ def calculate_manual_accuracy(y_true, y_pred, M):
 
 
 ## --- Define the Receiver Model ---
-class ReceiverModel(tf.keras.Model):
-    def __init__(self, modulation_order, N):
-        super(ReceiverModel, self).__init__()
-        self.bn1 = tf.keras.layers.BatchNormalization()
-        self.d1 = tf.keras.layers.Dense(16 * modulation_order, activation='relu',
-                                        kernel_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.01))
-        self.bn2 = tf.keras.layers.BatchNormalization()
-        self.d2 = tf.keras.layers.Dense(16 * modulation_order, activation='relu',
-                                        kernel_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.01))
-        self.bn3 = tf.keras.layers.BatchNormalization()
-        self.d3 = tf.keras.layers.Dense(16 * modulation_order, activation='relu',
-                                        kernel_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.01))
-        self.bn4 = tf.keras.layers.BatchNormalization()
-        self.d4 = tf.keras.layers.Dense(16 * modulation_order, activation='relu',
-                                        kernel_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.01))
-        self.bn5 = tf.keras.layers.BatchNormalization()
-        self.out_layer = tf.keras.layers.Dense(modulation_order * N)
-        self.bn_out = tf.keras.layers.BatchNormalization()
+def ReceiverModel(modulation_order, N):
+    # Define the input layer explicitly
+    inputs = tf.keras.Input(shape=(2 * N,), name="input_layer")
 
-    def call(self, inputs, training=False):
-        x = self.bn1(inputs, training=training)
-        x = self.d1(x)
-        x = self.bn2(x, training=training)
-        x = self.d2(x)
-        x = self.bn3(x, training=training)
-        x = self.d3(x)
-        x = self.bn4(x, training=training)
-        x = self.d4(x)
-        x = self.bn5(x, training=training)
-        x = self.out_layer(x)
-        return self.bn_out(x, training=training)
+    # Define the layers exactly like your previous architecture
+    x = tf.keras.layers.BatchNormalization()(inputs)
 
+    x = tf.keras.layers.Dense(16 * modulation_order, activation='relu',
+                              kernel_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.01))(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+
+    x = tf.keras.layers.Dense(16 * modulation_order, activation='relu',
+                              kernel_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.01))(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+
+    x = tf.keras.layers.Dense(16 * modulation_order, activation='relu',
+                              kernel_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.01))(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+
+    x = tf.keras.layers.Dense(16 * modulation_order, activation='relu',
+                              kernel_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.01))(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+
+    # Output layer
+    outputs = tf.keras.layers.Dense(modulation_order * N)(x)
+    outputs = tf.keras.layers.BatchNormalization()(outputs)
+
+    # Construct the model
+    model = tf.keras.Model(inputs=inputs, outputs=outputs)
+    return model
+
+
+# Instantiate them
+model1 = ReceiverModel(modulation_order, N)
+model2 = ReceiverModel(modulation_order, N)
 
 # Initialize models and optimizers
 model1 = ReceiverModel(modulation_order, N)
@@ -214,6 +218,15 @@ for k in range(n_iteration):
         ERROR_user2[i, k] = 1 - calculate_manual_accuracy(label2_t, out2_t, M)
 
         print(f"SNR {current_snr_db} dB: SER1 = {ERROR_user1[i, k]:.6f}, SER2 = {ERROR_user2[i, k]:.6f}")
+
+config = hls4ml.utils.config_from_keras_model(model1)
+hls_model = hls4ml.converters.convert_from_keras_model(
+   model=model1,
+   hls_config=config,
+   backend='Vitis'
+)
+hls_model.build()
+hls4ml.report.read_vivado_report('my-hls-test')
 
 ## --- Plotting ---
 error1 = np.mean(ERROR_user1, axis=1)
